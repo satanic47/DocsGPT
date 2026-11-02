@@ -664,14 +664,14 @@ def sse_connections_gauge_task(self):
     from docsgpt.events import queue_gauge
 
     redis_client = get_redis_instance()
-    if redis_client is None:
-        return {"skipped": "redis unavailable"}
-    try:
-        snapshot = measure_sse_connections(redis_client)
-    except Exception:
-        # Transient Redis hiccup — the next minute's sweep will cover it.
-        logging.warning("sse_gauge sweep failed", exc_info=True)
-        return {"skipped": "redis error"}
+    snapshot = None
+    if redis_client is not None:
+        try:
+            snapshot = measure_sse_connections(redis_client)
+        except Exception:
+            # Transient Redis hiccup — the next minute's sweep will cover it.
+            logging.warning("sse_gauge sweep failed", exc_info=True)
+
     queues = None
     try:
         broker = queue_gauge.broker_redis()
@@ -682,17 +682,23 @@ def sse_connections_gauge_task(self):
     except Exception:
         logging.warning("queue gauge sweep failed", exc_info=True)
         queues = None
-    logging.info(
-        "sse_gauge",
-        extra={
-            "connected_users": snapshot["connected_users"],
-            "connections": snapshot["connections"],
-            **(queue_gauge.queue_log_fields(queues) if queues else {}),
-        },
-    )
+
+    if snapshot is None and queues is None:
+        return {"skipped": "redis and broker unavailable"}
+
+    extra = {
+        **(queue_gauge.queue_log_fields(queues) if queues else {}),
+    }
+    if snapshot is not None:
+        extra["connected_users"] = snapshot["connected_users"]
+        extra["connections"] = snapshot["connections"]
+
+    logging.info("sse_gauge", extra=extra)
+
+    result = dict(snapshot) if snapshot else {}
     if queues:
-        return {**snapshot, "queues": queues}
-    return snapshot
+        result["queues"] = queues
+    return result
 
 
 @celery.task(bind=True, acks_late=False)

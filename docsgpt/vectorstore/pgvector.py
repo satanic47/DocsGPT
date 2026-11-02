@@ -997,8 +997,12 @@ def chunk_counts_by_source(*, connection_string: Optional[str] = None, table_nam
     if not dsn:
         raise ValueError("Set PGVECTOR_CONNECTION_STRING or POSTGRES_URI to count pgvector chunks.")
     import psycopg
+    from psycopg import sql
 
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cursor:
-            cursor.execute(f"SELECT source_id, count(*) FROM {table_name} GROUP BY source_id;")
+            query = sql.SQL("SELECT source_id, count(*) FROM {table} GROUP BY source_id;").format(
+                table=sql.Identifier(table_name)
+            )
+            cursor.execute(query)
             return {str(source_id): int(count) for source_id, count in cursor.fetchall()}

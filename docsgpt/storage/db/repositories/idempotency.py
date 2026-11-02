@@ -313,6 +313,7 @@ class IdempotencyRepository:
                 """
                 UPDATE task_dedup
                 SET attempt_count    = 0,
+                    created_at       = now(),
                     task_id          = :task_id,
                     lease_owner_id   = NULL,
                     lease_expires_at = NULL

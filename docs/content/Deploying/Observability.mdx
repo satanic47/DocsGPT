@@ -293,9 +293,9 @@ describe the live-update connections and every Celery queue the worker declares 
 | Attribute | Meaning |
 | --- | --- |
 | `connected_users` | Users with at least one open live-update (SSE) connection. Counted only while `SSE_MAX_CONCURRENT_PER_USER` is above 0. |
-| `connections` | Open live-update connections in total. |
+| `connections` | Open live-update connections in total. Counted only while `SSE_MAX_CONCURRENT_PER_USER` is above 0 (when 0, streams create no leases and connections reads 0 after existing leases expire). |
 | `queue_<name>_depth` | Messages waiting in the queue, across all priorities. |
-| `queue_<name>_wait_s` | How long the task at the head of the queue has been waiting there, in seconds. It is measured between gauge runs, so it lags by up to a minute, and it starts again from 0 whenever the head task changes. |
+| `queue_<name>_wait_s` | Lower bound on how long the task currently at the head of the queue has been waiting there, in seconds. Timing starts when a task reaches the head of the queue, so total queue wait may be substantially longer if it waited behind other tasks. It resets to 0 whenever the head task changes. |
 | `queue_<name>_in_flight` | Tasks from the queue that a worker is running now. |
 
 `<name>` is the queue name in lower case, with any character other than a letter or digit replaced by `_`,
@@ -304,7 +304,7 @@ such as `queue_ingest_wait_s`.
 Workers report their running tasks themselves, every 30 seconds, so `in_flight` keeps counting an ingest that
 runs for hours, past the broker's visibility timeout (`CELERY_VISIBILITY_TIMEOUT`). A task whose worker was killed
 stops counting about 90 seconds later. The queue numbers need a Redis broker: with another broker, the line carries
-only the two connection counts. If the broker can't be read, the line is still logged without the queue fields.
+only the two connection counts. An unreadable broker leaves the line logged without the queue fields; if the cache Redis is unavailable or its sweep fails, the line is suppressed.
 
 The attributes reach your backend when [OTLP log export](#enabling) is on (`OTEL_LOGS_EXPORTER=otlp`). On stdout,
 the worker's `Task ...sse_connections_gauge_task[...] succeeded` line prints the same numbers.

@@ -105,9 +105,10 @@ def _head_identity(raw) -> str:
         if task_id:
             return str(task_id)
     except (ValueError, TypeError, KeyError, UnicodeDecodeError):
+        # Fall back to payload digest when headers cannot be parsed
         pass
     data = raw if isinstance(raw, bytes) else str(raw).encode()
-    return "sha1:" + hashlib.sha1(data).hexdigest()
+    return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
 # --- worker side: running tasks ---------------------------------------------
